@@ -10,6 +10,7 @@ ENV/
 
 # Logs
 *.log
+windows_setup_snippet.txt
 
 # OS generated files
 .DS_Store
