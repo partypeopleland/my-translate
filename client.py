@@ -16,12 +16,9 @@ LOG_FILE = SCRIPT_DIR / "server.log"
 
 def is_server_running():
     try:
-        # Just a simple connection check
         requests.get(f"http://localhost:{SERVER_PORT}/docs", timeout=0.2)
         return True
-    except requests.ConnectionError:
-        return False
-    except Exception:
+    except (requests.ConnectionError, Exception):
         return False
 
 def start_server():
@@ -33,10 +30,9 @@ def start_server():
                 [sys.executable, str(SERVER_SCRIPT)],
                 stdout=log,
                 stderr=log,
-                start_new_session=True # Detach from current terminal
+                start_new_session=True 
             )
-        # Wait for server to be ready
-        retries = 20 # 2 seconds max
+        retries = 20
         for _ in range(retries):
             if is_server_running():
                 return True
@@ -46,13 +42,35 @@ def start_server():
         print(f"Failed to start server: {e}", file=sys.stderr)
         return False
 
+def get_input_text(args):
+    """Determines the input text from args or stdin."""
+    if args.text:
+        return args.text
+    
+    # Check if data is being piped in (stdin is not a TTY)
+    if not sys.stdin.isatty():
+        # Read content
+        input_data = sys.stdin.read().strip()
+        if input_data:
+            return input_data
+            
+    return None
+
 def main():
     parser = argparse.ArgumentParser(description="TranslateGemma CLI")
-    parser.add_argument("text", help="Text to translate")
+    # Make text optional so we can accept stdin
+    parser.add_argument("text", nargs="?", help="Text to translate (optional if piping)")
     parser.add_argument("-s", "--source", help="Source language (zh, en, ja)", default=None)
     parser.add_argument("-t", "--target", help="Target language (zh, en, ja)", default=None)
     
     args = parser.parse_args()
+
+    # Determine input text
+    text_to_translate = get_input_text(args)
+
+    if not text_to_translate:
+        parser.print_help()
+        sys.exit(0)
 
     # 1. Check/Start Server
     if not is_server_running():
@@ -63,7 +81,7 @@ def main():
 
     # 2. Send Request
     payload = {
-        "text": args.text,
+        "text": text_to_translate,
         "source_lang": args.source,
         "target_lang": args.target
     }

@@ -1,6 +1,8 @@
 # TranslateGemma CLI Wrapper (翻譯小助手)
 
-這是一個輕量級的 CLI 工具，專為在 Ollama 上運行的 Google `translategemma` 模型設計。它提供了一個簡單的指令列介面，讓您可以直接從終端機進行高品質的翻譯（支援 中 <-> 英 <-> 日），並具備自動語言偵測與背景服務管理功能。
+這是一個輕量級的 CLI 工具，專為在 [Ollama](https://ollama.com/) 上運行的 Google [gemma-2-9b-it](https://ollama.com/library/gemma2) (或社群微調版如 `translategemma`) 模型設計。它提供了一個簡單的指令列介面，讓您可以直接從終端機進行高品質的翻譯（支援 中 <-> 英 <-> 日），並具備自動語言偵測與背景服務管理功能。
+
+> **模型說明**: 本專案預設使用模型名稱為 `translategemma`。您可以至 Ollama 官網搜尋適合的翻譯專用模型，或使用官方的 [Gemma 2](https://ollama.com/library/gemma2) 搭配適當 Prompt。
 
 ## 架構說明 (Architecture)
 
@@ -27,6 +29,7 @@ graph TD
     - 輸入 **中文** -> 自動翻成 **英文**
     - 輸入 **英文** -> 自動翻成 **繁體中文**
     - 輸入 **日文** -> 自動翻成 **繁體中文**
+- **支援標準輸入 (Pipe Support)**: 可串接 `echo`、`cat` 或系統剪貼簿進行翻譯。
 - **零配置服務 (Zero-Config Service)**: 當您輸入指令時，背景服務會自動啟動，無需手動管理伺服器。
 - **跨平台支援**: 專為 WSL (Windows Subsystem for Linux) 設計，但可透過 PowerShell 從 Windows 端直接呼叫，達成無縫體驗。
 
@@ -35,7 +38,11 @@ graph TD
 ### 前置需求
 - **WSL 2** (Linux 環境)
 - **Ollama** 已安裝並正在執行 (`ollama serve`)
-- **translategemma** 模型已下載 (`ollama pull translategemma`)
+- **模型準備**:
+  ```bash
+  ollama pull translategemma
+  # 或使用其他模型 (需修改 server.py 中的 MODEL_NAME)
+  ```
 - **Python 3**
 
 ### 設定步驟 (在 WSL 中)
@@ -51,7 +58,7 @@ bash setup.sh
 
 ## 使用方法
 
-### 1. 基本用法 (WSL 環境)
+### 1. 基本用法 (WSL / Windows)
 
 ```bash
 # 自動偵測：英文 -> 中文
@@ -64,9 +71,30 @@ trans "你好世界"
 trans -t ja "早安"
 ```
 
-### 2. Windows 環境使用方法 (PowerShell)
+### 2. 進階用法：Pipe (標準輸入)
 
-若您希望不進入 WSL，直接在 Windows Terminal 使用此工具，請將以下函式加入您的 PowerShell 設定檔 (`notepad $PROFILE`)：
+支援從其他指令傳遞文字進行翻譯。
+
+**在 WSL (Bash/Zsh):**
+```bash
+echo "Testing pipe translation" | trans
+cat document.txt | trans
+```
+
+**在 Windows (PowerShell):**
+```powershell
+# 翻譯剪貼簿內容
+Get-Clipboard | trans
+
+# 串接字串
+"Pipe works in PowerShell too" | trans
+```
+
+### 3. Windows 環境設定 (PowerShell)
+
+若您希望不進入 WSL，直接在 Windows Terminal 使用此工具，請將以下函式加入您的 PowerShell 設定檔 (`notepad $PROFILE`)。
+
+此版本已支援 Pipe 輸入：
 
 > **注意**: 請將變數 `$wslPath` 的路徑修改為您實際存放專案的路徑。
 
@@ -77,28 +105,19 @@ function trans {
     $clientScript = "$wslPath/client.py"
     $venvPython = "$wslPath/.venv/bin/python3"
 
-    # 將參數組合成字串
-    $argsStr = $args -join " "
-    
-    # 透過 wsl 執行指令
-    wsl $venvPython $clientScript "$argsStr"
+    # 檢查是否有來自 Pipe 的輸入 ($Input)
+    if ($Input.MoveNext()) {
+        $Input.Reset()
+        # 收集 Pipe 內容並傳給 WSL
+        $inputStr = $Input | Out-String
+        $inputStr | wsl $venvPython $clientScript
+    }
+    else {
+        # 無 Pipe，使用參數模式
+        $argsStr = $args -join " "
+        wsl $venvPython $clientScript "$argsStr"
+    }
 }
-```
-
-設定完成後，您就可以在 PowerShell 中直接輸入：
-
-```powershell
-trans "Coding is fun"
-```
-
-### 3. 多行文字輸入
-
-您可以使用引號將多行文字包起來進行翻譯：
-
-```bash
-trans "這是第一行
-這是第二行
-這是第三行"
 ```
 
 ## 授權 (License)
